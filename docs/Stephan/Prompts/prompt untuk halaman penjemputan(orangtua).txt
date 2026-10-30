@@ -1,0 +1,49 @@
+Saya sedang mengembangkan aplikasi "TitipAnak" (Daycare) menggunakan Laravel 10/11.
+Saya ingin membuat fitur dan halaman Penjemputan khusus untuk akses USER ORANG TUA.
+
+STRICT RULES (ATURAN KETAT):
+1. JANGAN buat atau berikan file Migration baru. Struktur database SUDAH FIX dan TIDAK BOLEH diubah/ditambah.
+2. JANGAN langsung memberikan semua kode sekaligus. Kita akan mengerjakan secara bertahap (per file/per step/per commit).
+3. Tulis kode LENGKAP dan SIAP PAKAI, bukan potongan kode (no placeholders/TODO).
+4. Gunakan Blade + Tailwind CSS (lengkap dengan styling kustom jika diperlukan, mengacu pada referensi UI/HTML yang akan saya berikan).
+5. Terapkan validasi Form Request Laravel, penanganan upload file yang aman, serta pemanfaatan Eloquent Relationship secara optimal.
+
+---
+
+[INFORMASI DATABASE & RELASI]
+- anak (id, user_id, kode_anak, nama_lengkap, nama_panggilan, jenis_kelamin, tanggal_lahir, foto, kelas_id, alamat, catatan_medis, status_kehadiran ['belum_datang','hadir','dijemput','pulang'], jam_masuk, jam_pulang, is_active, timestamps, softDeletes)
+- penjemput (id, anak_id, nama, hubungan, nik, no_hp, foto, is_active, timestamps)
+- penjemputan (id, anak_id, penjemput_id, user_id, waktu_jemput, metode_verifikasi, foto_bukti, tanda_tangan, catatan, status, timestamps)
+- users (auth bawaan Laravel - role Orang Tua)
+- kelas (id, nama_kelas)
+
+Relasi Model:
+- anak: belongsTo(User::class), belongsTo(Kelas::class), hasMany(Penjemput::class), hasMany(Penjemputan::class)
+- penjemput: belongsTo(Anak::class), hasMany(Penjemputan::class)
+- penjemputan: belongsTo(Anak::class), belongsTo(Penjemput::class), belongsTo(User::class)
+
+---
+
+[ALUR PENGERJAAN & 3 STAGE COMMIT]
+
+Pengerjaan akan dibagi menjadi 3 commit/tahapan utama. Saya akan memberikan referensi UI/HTML pada setiap tahapnya untuk disesuaikan ke dalam komponen Blade + Tailwind CSS:
+
+1. COMMIT 1: Mengajukan Izin Penjemputan
+   - Form pengajuan izin penjemputan darurat/sementara (pilih anak, nama penjemput, hubungan/alasan, upload foto identitas/KTP).
+   - Validation via Form Request & upload file secure storage.
+   - Menyimpan data ke tabel `penjemputan` dengan status awal 'pending'.
+
+2. COMMIT 2: Melihat Status Izin Penjemputan
+   - Tampilan daftar/monitoring status pengajuan izin milik orang tua yang sedang login.
+   - Visual badge status Tailwind CSS ('pending', 'disetujui', 'ditolak', 'selesai').
+   - Detail informasi pengajuan dan anak terkait.
+
+3. COMMIT 3: Membatalkan Status Izin Penjemputan
+   - Logic controller untuk membatalkan pengajuan yang masih berstatus 'pending'.
+   - UI tombol aksi "Batalkan" lengkap dengan modal konfirmasi.
+   - Update status pengajuan menjadi 'dibatalkan'.
+
+---
+
+TUGAS PERTAMA ANDA:
+Konfirmasikan pemahaman Anda terhadap aturan, alur 3 commit, dan struktur database di atas. Sebutkan daftar file yang akan kita buat untuk COMMIT 1 terlebih dahulu, lalu TUNGGU INSTRUKSI SAYA (serta referensi UI/HTML yang akan saya berikan) sebelum mulai menulis kode.

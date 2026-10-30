@@ -1,0 +1,222 @@
+-- ==========================================
+-- 1. DATABASE & CONFIGURATION
+-- ==========================================
+CREATE DATABASE IF NOT EXISTS Titipanak;
+USE Titipanak;
+
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ==========================================
+-- 2. AUTHENTICATION & SYSTEM (Laravel Default)
+-- ==========================================
+
+-- Tabel Users
+CREATE TABLE IF NOT EXISTS `users` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(255) NOT NULL,
+  `email` VARCHAR(255) NOT NULL UNIQUE,
+  `email_verified_at` TIMESTAMP NULL DEFAULT NULL,
+  `password` VARCHAR(255) NOT NULL,
+  `remember_token` VARCHAR(100) DEFAULT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT NULL,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Password Reset Tokens
+CREATE TABLE IF NOT EXISTS `password_reset_tokens` (
+  `email` VARCHAR(255) PRIMARY KEY,
+  `token` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Sessions
+CREATE TABLE IF NOT EXISTS `sessions` (
+  `id` VARCHAR(255) PRIMARY KEY,
+  `user_id` BIGINT UNSIGNED DEFAULT NULL,
+  `ip_address` VARCHAR(45) DEFAULT NULL,
+  `user_agent` TEXT DEFAULT NULL,
+  `payload` LONGTEXT NOT NULL,
+  `last_activity` INT NOT NULL,
+  KEY `sessions_user_id_index` (`user_id`),
+  KEY `sessions_last_activity_index` (`last_activity`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==========================================
+-- 3. CACHE & QUEUE SYSTEM (Laravel Default)
+-- ==========================================
+
+-- Tabel Cache
+CREATE TABLE IF NOT EXISTS `cache` (
+  `key` VARCHAR(255) PRIMARY KEY,
+  `value` MEDIUMTEXT NOT NULL,
+  `expiration` INT NOT NULL,
+  KEY `cache_expiration_index` (`expiration`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `cache_locks` (
+  `key` VARCHAR(255) PRIMARY KEY,
+  `owner` VARCHAR(255) NOT NULL,
+  `expiration` INT NOT NULL,
+  KEY `cache_locks_expiration_index` (`expiration`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Jobs & Batches
+CREATE TABLE IF NOT EXISTS `jobs` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `queue` VARCHAR(255) NOT NULL,
+  `payload` LONGTEXT NOT NULL,
+  `attempts` TINYINT UNSIGNED NOT NULL,
+  `reserved_at` INT UNSIGNED DEFAULT NULL,
+  `available_at` INT UNSIGNED NOT NULL,
+  `created_at` INT UNSIGNED NOT NULL,
+  KEY `jobs_queue_index` (`queue`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `job_batches` (
+  `id` VARCHAR(255) PRIMARY KEY,
+  `name` VARCHAR(255) NOT NULL,
+  `total_jobs` INT NOT NULL,
+  `pending_jobs` INT NOT NULL,
+  `failed_jobs` INT NOT NULL,
+  `failed_job_ids` LONGTEXT NOT NULL,
+  `options` MEDIUMTEXT DEFAULT NULL,
+  `cancelled_at` INT DEFAULT NULL,
+  `created_at` INT NOT NULL,
+  `finished_at` INT DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `failed_jobs` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `uuid` VARCHAR(255) NOT NULL UNIQUE,
+  `connection` TEXT NOT NULL,
+  `queue` TEXT NOT NULL,
+  `payload` LONGTEXT NOT NULL,
+  `exception` LONGTEXT NOT NULL,
+  `failed_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==========================================
+-- 4. ROLES & PERMISSIONS (Spatie Package)
+-- ==========================================
+
+-- Tabel Permissions
+CREATE TABLE IF NOT EXISTS `permissions` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(255) NOT NULL,
+  `guard_name` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT NULL,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY `permissions_name_guard_name_unique` (`name`, `guard_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Roles
+CREATE TABLE IF NOT EXISTS `roles` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(255) NOT NULL,
+  `guard_name` VARCHAR(255) NOT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT NULL,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL,
+  UNIQUE KEY `roles_name_guard_name_unique` (`name`, `guard_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Model Has Permissions
+CREATE TABLE IF NOT EXISTS `model_has_permissions` (
+  `permission_id` BIGINT UNSIGNED NOT NULL,
+  `model_type` VARCHAR(255) NOT NULL,
+  `model_id` BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (`permission_id`, `model_id`, `model_type`),
+  KEY `model_has_permissions_model_id_model_type_index` (`model_id`, `model_type`),
+  CONSTRAINT `model_has_permissions_permission_id_foreign` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Model Has Roles
+CREATE TABLE IF NOT EXISTS `model_has_roles` (
+  `role_id` BIGINT UNSIGNED NOT NULL,
+  `model_type` VARCHAR(255) NOT NULL,
+  `model_id` BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (`role_id`, `model_id`, `model_type`),
+  KEY `model_has_roles_model_id_model_type_index` (`model_id`, `model_type`),
+  CONSTRAINT `model_has_roles_role_id_foreign` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Role Has Permissions
+CREATE TABLE IF NOT EXISTS `role_has_permissions` (
+  `permission_id` BIGINT UNSIGNED NOT NULL,
+  `role_id` BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (`permission_id`, `role_id`),
+  CONSTRAINT `role_has_permissions_permission_id_foreign` FOREIGN KEY (`permission_id`) REFERENCES `permissions` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `role_has_permissions_role_id_foreign` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ==========================================
+-- 5. APLIKASI TITIPANAK
+-- ==========================================
+
+-- Tabel Kelas
+CREATE TABLE IF NOT EXISTS `kelas` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `nama_kelas` VARCHAR(100) NOT NULL,
+  `created_at` TIMESTAMP NULL DEFAULT NULL,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Anak
+CREATE TABLE IF NOT EXISTS `anak` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT 'Orang tua/wali (akun parent)',
+  `kode_anak` VARCHAR(20) NOT NULL COMMENT 'Kode unik, mis. ANK-0001',
+  `nama_lengkap` VARCHAR(100) NOT NULL,
+  `nama_panggilan` VARCHAR(50) DEFAULT NULL,
+  `jenis_kelamin` ENUM('L', 'P') NOT NULL,
+  `tanggal_lahir` DATE NOT NULL,
+  `tempat_lahir` VARCHAR(100) DEFAULT NULL,
+  `foto` VARCHAR(255) DEFAULT NULL COMMENT 'Path foto',
+  `kelas_id` BIGINT UNSIGNED DEFAULT NULL COMMENT 'Relasi ke tabel kelas',
+  `alamat` TEXT DEFAULT NULL,
+  `catatan_medis` TEXT DEFAULT NULL COMMENT 'Alergi, kondisi khusus, dll',
+  `status_kehadiran` ENUM('belum_datang', 'hadir', 'dijemput', 'pulang') NOT NULL DEFAULT 'belum_datang' COMMENT 'Dipakai di halaman penjemputan',
+  `jam_masuk` DATETIME DEFAULT NULL COMMENT 'Diisi saat check-in',
+  `jam_pulang` DATETIME DEFAULT NULL COMMENT 'Diisi saat check-out/penjemputan',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1 COMMENT 'Soft-disable anak (mis. sudah tidak terdaftar)',
+  `created_at` TIMESTAMP NULL DEFAULT NULL,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL,
+  `deleted_at` TIMESTAMP NULL DEFAULT NULL COMMENT 'Soft delete',
+  CONSTRAINT `fk_anak_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_anak_kelas` FOREIGN KEY (`kelas_id`) REFERENCES `kelas` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Penjemput (Daftar orang yang berhak menjemput)
+CREATE TABLE IF NOT EXISTS `penjemput` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `anak_id` BIGINT UNSIGNED NOT NULL,
+  `nama` VARCHAR(255) NOT NULL,
+  `hubungan` ENUM('ayah', 'ibu', 'kakek', 'nenek', 'wali', 'lainnya') NOT NULL,
+  `nik` VARCHAR(50) NOT NULL,
+  `no_hp` VARCHAR(20) NOT NULL,
+  `foto` VARCHAR(255) DEFAULT NULL COMMENT 'Path foto',
+  `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NULL DEFAULT NULL,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL,
+  CONSTRAINT `fk_penjemput_anak` FOREIGN KEY (`anak_id`) REFERENCES `anak` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Tabel Penjemputan (Riwayat transaksi penjemputan)
+CREATE TABLE IF NOT EXISTS `penjemputan` (
+  `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `anak_id` BIGINT UNSIGNED NOT NULL COMMENT 'Anak yang dijemput',
+  `penjemput_id` BIGINT UNSIGNED NOT NULL COMMENT 'Siapa yang menjemput',
+  `user_id` BIGINT UNSIGNED NOT NULL COMMENT 'Staff yang memproses',
+  `waktu_jemput` DATETIME NOT NULL COMMENT 'Waktu aktual penjemputan',
+  `metode_verifikasi` ENUM('manual', 'fingerprint', 'face', 'qr') NOT NULL,
+  `foto_bukti` VARCHAR(255) DEFAULT NULL COMMENT 'Path foto',
+  `tanda_tangan` VARCHAR(255) DEFAULT NULL COMMENT 'Path gambar ttd',
+  `catatan` TEXT DEFAULT NULL,
+  `status` ENUM('pending', 'terverifikasi', 'dibatalkan') NOT NULL DEFAULT 'pending',
+  `created_at` TIMESTAMP NULL DEFAULT NULL,
+  `updated_at` TIMESTAMP NULL DEFAULT NULL,
+  CONSTRAINT `fk_penjemputan_anak` FOREIGN KEY (`anak_id`) REFERENCES `anak` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_penjemputan_penjemput` FOREIGN KEY (`penjemput_id`) REFERENCES `penjemput` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_penjemputan_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;
