@@ -12,19 +12,14 @@ class Penjemputan extends Model
 {
     use HasFactory;
 
-    /**
-     * Nama tabel diset manual karena Laravel akan menebak "penjemputans".
-     */
     protected $table = 'penjemputan';
+    protected $guarded = ['id'];
 
     public const STATUS_PENDING   = 'pending';
     public const STATUS_DISETUJUI = 'disetujui';
     public const STATUS_DITOLAK   = 'ditolak';
     public const STATUS_SELESAI   = 'selesai';
 
-    /**
-     * Penanda alur izin darurat pada kolom metode_verifikasi.
-     */
     public const METODE_DARURAT = 'darurat';
 
     public const STATUS_LABEL = [
@@ -34,36 +29,19 @@ class Penjemputan extends Model
         self::STATUS_SELESAI   => 'Selesai',
     ];
 
-    /**
-     * Warna badge sesuai guideline (dipakai oleh <x-badge tone="...">).
-     */
     public const STATUS_TONE = [
+
         self::STATUS_PENDING   => 'yellow',
         self::STATUS_DISETUJUI => 'mint',
         self::STATUS_DITOLAK   => 'coral',
         self::STATUS_SELESAI   => 'blue',
     ];
 
-    /**
-     * Penjelasan singkat untuk orang tua di setiap status.
-     */
     public const STATUS_KETERANGAN = [
         self::STATUS_PENDING   => 'Pengajuan sedang diperiksa oleh admin atau pengasuh.',
         self::STATUS_DISETUJUI => 'Penjemput boleh menjemput anak Anda dengan membawa KTP.',
         self::STATUS_DITOLAK   => 'Pengajuan tidak disetujui. Silakan hubungi pihak daycare.',
         self::STATUS_SELESAI   => 'Anak sudah dijemput oleh penjemput ini.',
-    ];
-
-    protected $fillable = [
-        'anak_id',
-        'penjemput_id',
-        'user_id',
-        'waktu_jemput',
-        'metode_verifikasi',
-        'foto_bukti',
-        'tanda_tangan',
-        'catatan',
-        'status',
     ];
 
     protected $casts = [
@@ -85,6 +63,7 @@ class Penjemputan extends Model
     }
 
     public function user(): BelongsTo
+
     {
         return $this->belongsTo(User::class);
     }
@@ -93,10 +72,6 @@ class Penjemputan extends Model
      | Scope
      | ------------------------------------------------------------------ */
 
-    /**
-     * Batasi hanya untuk pengajuan yang dibuat oleh orang tua tertentu.
-     * Wajib dipakai di semua query halaman orang tua.
-     */
     public function scopeMilikOrangTua(Builder $query, int $userId): Builder
     {
         return $query->where($this->qualifyColumn('user_id'), $userId);
@@ -107,10 +82,6 @@ class Penjemputan extends Model
         return $query->where($this->qualifyColumn('metode_verifikasi'), self::METODE_DARURAT);
     }
 
-    /**
-     * Filter berdasarkan status. Nilai kosong atau tidak dikenal diabaikan,
-     * sehingga aman dipakai langsung dari input filter di halaman riwayat.
-     */
     public function scopeBerstatus(Builder $query, ?string $status): Builder
     {
         if (! $status || ! array_key_exists($status, self::STATUS_LABEL)) {
@@ -124,6 +95,7 @@ class Penjemputan extends Model
     {
         return $query->where($this->qualifyColumn('status'), self::STATUS_PENDING);
     }
+
 
     /* ------------------------------------------------------------------
      | Accessor
@@ -157,6 +129,7 @@ class Penjemputan extends Model
     public function isDarurat(): bool
     {
         return $this->metode_verifikasi === self::METODE_DARURAT;
+
     }
 
     public function isMenunggu(): bool
@@ -169,9 +142,6 @@ class Penjemputan extends Model
         return $this->status === self::STATUS_DISETUJUI;
     }
 
-    /**
-     * Daftar status untuk dropdown/chip filter: [nilai => label].
-     */
     public static function daftarStatus(): array
     {
         return self::STATUS_LABEL;

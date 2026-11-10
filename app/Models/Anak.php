@@ -18,29 +18,22 @@ class Anak extends Model
 {
     use HasFactory, SoftDeletes;
 
-    /**
-     * Nama tabel diset manual karena Laravel akan menebak "anaks".
-     */
     protected $table = 'anak';
+    protected $guarded = ['id'];
 
     public const STATUS_BELUM_DATANG = 'belum_datang';
     public const STATUS_HADIR        = 'hadir';
     public const STATUS_DIJEMPUT     = 'dijemput';
     public const STATUS_PULANG       = 'pulang';
 
-    /**
-     * Label status kehadiran (Bahasa Indonesia sederhana untuk orang tua).
-     */
     public const STATUS_LABEL = [
         self::STATUS_BELUM_DATANG => 'Belum Datang',
         self::STATUS_HADIR        => 'Hadir',
         self::STATUS_DIJEMPUT     => 'Sedang Dijemput',
+
         self::STATUS_PULANG       => 'Sudah Pulang',
     ];
 
-    /**
-     * Warna badge sesuai guideline (dipakai oleh <x-badge tone="...">).
-     */
     public const STATUS_TONE = [
         self::STATUS_BELUM_DATANG => 'ink',
         self::STATUS_HADIR        => 'blue',
@@ -48,30 +41,9 @@ class Anak extends Model
         self::STATUS_PULANG       => 'mint',
     ];
 
-    /**
-     * Status kehadiran yang masih boleh diajukan penjemputan daruratnya.
-     */
     public const STATUS_BOLEH_AJUKAN = [
         self::STATUS_BELUM_DATANG,
         self::STATUS_HADIR,
-    ];
-
-    protected $fillable = [
-        'user_id',
-        'kode_anak',
-        'nama_lengkap',
-        'nama_panggilan',
-        'jenis_kelamin',
-        'tanggal_lahir',
-        'tempat_lahir',
-        'foto',
-        'kelas_id',
-        'alamat',
-        'catatan_medis',
-        'status_kehadiran',
-        'jam_masuk',
-        'jam_pulang',
-        'is_active',
     ];
 
     protected $casts = [
@@ -91,6 +63,7 @@ class Anak extends Model
     }
 
     public function kelas(): BelongsTo
+
     {
         return $this->belongsTo(Kelas::class);
     }
@@ -105,10 +78,6 @@ class Anak extends Model
         return $this->hasMany(Penjemputan::class);
     }
 
-    /**
-     * Penjemputan terbaru milik anak ini. Aman dipakai dengan eager loading
-     * (with('penjemputanTerakhir')) sehingga tidak terjadi N+1 query.
-     */
     public function penjemputanTerakhir(): HasOne
     {
         return $this->hasOne(Penjemputan::class)->latestOfMany();
@@ -118,10 +87,6 @@ class Anak extends Model
      | Scope
      | ------------------------------------------------------------------ */
 
-    /**
-     * Batasi data hanya untuk anak milik orang tua tertentu.
-     * Wajib dipakai di semua query halaman orang tua.
-     */
     public function scopeMilikOrangTua(Builder $query, int $userId): Builder
     {
         return $query->where($this->qualifyColumn('user_id'), $userId);
@@ -132,9 +97,7 @@ class Anak extends Model
         return $query->where($this->qualifyColumn('is_active'), true);
     }
 
-    /**
-     * Anak aktif yang masih boleh diajukan penjemputan darurat.
-     */
+
     public function scopeBisaAjukanPenjemputan(Builder $query): Builder
     {
         return $query->aktif()
@@ -145,9 +108,6 @@ class Anak extends Model
      | Accessor
      | ------------------------------------------------------------------ */
 
-    /**
-     * URL foto anak, atau null jika belum ada foto (view menampilkan inisial).
-     */
     protected function fotoUrl(): Attribute
     {
         return Attribute::make(
@@ -157,9 +117,6 @@ class Anak extends Model
         );
     }
 
-    /**
-     * Nama yang ditampilkan: panggilan jika ada, jika tidak nama lengkap.
-     */
     protected function namaTampil(): Attribute
     {
         return Attribute::make(
@@ -167,19 +124,14 @@ class Anak extends Model
         );
     }
 
-    /**
-     * Satu huruf awal untuk avatar bulat saat foto belum ada.
-     */
     protected function inisial(): Attribute
     {
         return Attribute::make(
             get: fn () => Str::upper(Str::substr((string) $this->nama_tampil, 0, 1)),
         );
+
     }
 
-    /**
-     * Umur dalam format sederhana, contoh: "2 tahun 3 bulan" atau "8 bulan".
-     */
     protected function umur(): Attribute
     {
         return Attribute::make(
@@ -210,6 +162,7 @@ class Anak extends Model
         return Attribute::make(
             get: fn () => self::STATUS_LABEL[$this->status_kehadiran] ?? 'Tidak Diketahui',
         );
+
     }
 
     protected function statusKehadiranTone(): Attribute
@@ -223,9 +176,6 @@ class Anak extends Model
      | Helper
      | ------------------------------------------------------------------ */
 
-    /**
-     * Apakah anak ini masih boleh diajukan penjemputan darurat?
-     */
     public function bolehAjukanPenjemputan(): bool
     {
         return $this->is_active

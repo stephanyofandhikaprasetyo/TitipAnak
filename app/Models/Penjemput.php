@@ -14,42 +14,23 @@ class Penjemput extends Model
 {
     use HasFactory;
 
-    /**
-     * Nama tabel diset manual karena Laravel akan menebak "penjemputs".
-     */
     protected $table = 'penjemput';
+    protected $guarded = ['id'];
 
-    /**
-     * Foto KTP penjemput adalah data sensitif, jadi disimpan di disk PRIVATE
-     * (storage/app/private atau storage/app, sesuai versi Laravel) dan
-     * ditampilkan lewat route terproteksi, bukan URL publik.
-     */
     public const DISK_FOTO = 'local';
     public const DIREKTORI_FOTO = 'penjemput/identitas';
-
-    protected $fillable = [
-        'anak_id',
-        'nama',
-        'hubungan',
-        'nik',
-        'no_hp',
-        'foto',
-        'is_active',
-    ];
 
     protected $casts = [
         'is_active' => 'boolean',
     ];
 
-    /**
-     * NIK tidak ikut terserialisasi ke JSON/array secara tidak sengaja.
-     */
     protected $hidden = [
         'nik',
     ];
 
     /* ------------------------------------------------------------------
      | Relasi
+
      | ------------------------------------------------------------------ */
 
     public function anak(): BelongsTo
@@ -66,26 +47,16 @@ class Penjemput extends Model
      | Scope
      | ------------------------------------------------------------------ */
 
-    /**
-     * Penjemput rutin yang sah dan masih aktif.
-     */
     public function scopeAktif(Builder $query): Builder
     {
         return $query->where($this->qualifyColumn('is_active'), true);
     }
 
-    /**
-     * Penjemput yang tidak aktif. Penjemput darurat dari orang tua disimpan
-     * dengan is_active = false agar tidak muncul sebagai penjemput rutin.
-     */
     public function scopeNonaktif(Builder $query): Builder
     {
         return $query->where($this->qualifyColumn('is_active'), false);
     }
 
-    /**
-     * Batasi hanya untuk penjemput dari anak milik orang tua tertentu.
-     */
     public function scopeMilikOrangTua(Builder $query, int $userId): Builder
     {
         return $query->whereHas('anak', function (Builder $q) use ($userId) {
@@ -93,13 +64,11 @@ class Penjemput extends Model
         });
     }
 
+
     /* ------------------------------------------------------------------
      | Accessor
      | ------------------------------------------------------------------ */
 
-    /**
-     * Satu huruf awal untuk avatar bulat.
-     */
     protected function inisial(): Attribute
     {
         return Attribute::make(
@@ -107,10 +76,6 @@ class Penjemput extends Model
         );
     }
 
-    /**
-     * NIK yang disamarkan untuk ditampilkan, contoh: "************3456".
-     * Mengembalikan null jika NIK kosong (penjemput darurat tidak wajib NIK).
-     */
     protected function nikSamar(): Attribute
     {
         return Attribute::make(
@@ -131,6 +96,7 @@ class Penjemput extends Model
      | ------------------------------------------------------------------ */
 
     public function punyaFoto(): bool
+
     {
         return filled($this->foto);
     }

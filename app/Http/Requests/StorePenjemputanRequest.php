@@ -8,18 +8,15 @@ use Illuminate\Validation\Rule;
 class StorePenjemputanRequest extends FormRequest
 {
     /**
-     * Hanya user terautentikasi yang boleh mengirim pengajuan.
-     * Pengecekan role sudah dilakukan oleh middleware di route.
+     * Izinkan seluruh request pengguna yang sudah terautentikasi.
      */
     public function authorize(): bool
     {
-        return $this->user() !== null;
+        return true;
     }
 
     /**
-     * Normalisasi input sebelum validasi
-     * - NIK   : hapus spasi/titik/strip, harus 16 digit angka
-     * - No HP : hapus spasi/strip, harus 10–15 digit angka
+     * Normalisasi input sebelum validasi (membersihkan simbol dari NIK & No HP).
      */
     protected function prepareForValidation(): void
     {
@@ -32,12 +29,12 @@ class StorePenjemputanRequest extends FormRequest
     public function rules(): array
     {
         return [
-            // Anak harus milik user yang login, aktif, dan belum dihapus
+            // Memastikan anak milik user login & aktif
             'anak_id' => [
                 'required',
                 'integer',
                 Rule::exists('anak', 'id')
-                    ->where('user_id', $this->user()->id)
+                    ->where('user_id', $this->user()?->id ?? auth()->id())
                     ->where('is_active', true)
                     ->whereNull('deleted_at'),
             ],
@@ -54,11 +51,17 @@ class StorePenjemputanRequest extends FormRequest
             'nik'   => ['required', 'string', 'digits:16'],
             'no_hp' => ['required', 'string', 'digits_between:10,15'],
 
-            'waktu_jemput' => ['required', 'date', 'after:now'],
+            'waktu_jemput' => ['required', 'date'],
             'alasan'       => ['required', 'string', 'min:10', 'max:500'],
 
-            // Upload KTP: wajib gambar, format aman, maks 2 MB
-            'foto_identitas' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            // Validasi upload file gambar KTP / identitas yang ramah file JPG/JPEG/PNG/WEBP
+            'foto_identitas' => [
+                'required',
+                'file',
+                'mimes:jpg,jpeg,png,webp',
+                'extensions:jpg,jpeg,png,webp',
+                'max:2048'
+            ],
         ];
     }
 
@@ -76,12 +79,13 @@ class StorePenjemputanRequest extends FormRequest
             'no_hp.required'          => 'No. HP penjemput wajib diisi.',
             'no_hp.digits_between'    => 'No. HP harus 10–15 digit angka.',
             'waktu_jemput.required'   => 'Waktu penjemputan wajib diisi.',
-            'waktu_jemput.after'      => 'Waktu penjemputan harus di masa depan.',
+            'waktu_jemput.date'       => 'Format waktu penjemputan tidak valid.',
             'alasan.required'         => 'Alasan / keperluan wajib diisi.',
             'alasan.min'              => 'Alasan minimal 10 karakter.',
             'foto_identitas.required' => 'Foto identitas / KTP wajib diunggah.',
-            'foto_identitas.image'    => 'File harus berupa gambar.',
+            'foto_identitas.file'     => 'File identitas harus berupa berkas gambar.',
             'foto_identitas.mimes'    => 'Format gambar harus JPG, JPEG, PNG, atau WEBP.',
+            'foto_identitas.extensions' => 'Ekstensi file harus .jpg, .jpeg, .png, atau .webp.',
             'foto_identitas.max'      => 'Ukuran gambar maksimal 2 MB.',
         ];
     }
