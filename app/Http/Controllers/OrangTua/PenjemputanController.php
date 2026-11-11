@@ -30,7 +30,6 @@ class PenjemputanController extends Controller
     /**
      * Menampilkan daftar status dan riwayat pengajuan izin penjemputan milik Orang Tua.
      */
-
     public function index()
     {
         $this->ensureAuthenticated();
@@ -63,7 +62,6 @@ class PenjemputanController extends Controller
     }
 
     /**
-
      * Simpan pengajuan izin penjemputan.
      */
     public function store(StorePenjemputanRequest $request): RedirectResponse
@@ -96,7 +94,6 @@ class PenjemputanController extends Controller
 
                 Penjemputan::create([
                     'anak_id'           => $anak->id,
-
                     'penjemput_id'      => $penjemput->id,
                     'user_id'           => Auth::id(),
                     'waktu_jemput'      => $validated['waktu_jemput'],
@@ -119,7 +116,32 @@ class PenjemputanController extends Controller
         }
 
         return redirect()
-            ->route('orangtua.penjemputan.create')
+            ->route('orangtua.penjemputan.index')
             ->with('success', 'Pengajuan izin penjemputan berhasil dikirim dan menunggu verifikasi.');
+    }
+
+    /**
+     * Membatalkan pengajuan izin penjemputan (Status 'pending' atau 'disetujui').
+     */
+    public function cancel($id): RedirectResponse
+    {
+        $this->ensureAuthenticated();
+
+        $penjemputan = Penjemputan::where('id', $id)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
+
+        // Validasi: Pembatalan diperbolehkan jika status masih 'pending' atau 'disetujui'
+        if (in_array($penjemputan->status, ['selesai', 'ditolak', 'dibatalkan'])) {
+            return redirect()->back()->with('error', 'Pengajuan ini tidak dapat dibatalkan karena sudah selesai atau ditolak.');
+        }
+
+        // Update status di database
+        $penjemputan->update([
+            'status' => 'dibatalkan',
+        ]);
+
+        return redirect()->route('orangtua.penjemputan.index')
+            ->with('success', 'Pengajuan izin penjemputan berhasil dibatalkan.');
     }
 }
