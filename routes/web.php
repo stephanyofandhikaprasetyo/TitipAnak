@@ -1,8 +1,10 @@
 <?php
 
-use App\Http\Controllers\OrangTua\PenjemputanController;
+use App\Http\Controllers\OrangTua\PenjemputanController as OrangTuaPenjemputanController;
+use App\Http\Controllers\Pengasuh\PenjemputanController as PengasuhPenjemputanController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -11,28 +13,44 @@ Route::get('/', function () {
 
 /*
 |--------------------------------------------------------------------------
-| Rute Autentikasi
+| Rute Autentikasi (RBAC Redirect per Role)
 |--------------------------------------------------------------------------
 */
 Route::get('/login', function () {
     if (Auth::check()) {
-        return redirect()->route('orangtua.penjemputan.index');
+        $isPengasuh = DB::table('model_has_roles')
+            ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
+            ->where('model_has_roles.model_id', Auth::id())
+            ->where('roles.name', 'pengasuh')
+            ->exists();
+
+        return $isPengasuh
+            ? redirect()->route('pengasuh.penjemputan.index')
+            : redirect()->route('orangtua.penjemputan.index');
     }
     return view('auth.login');
 })->name('login');
 
 Route::post('/login', function (Request $request) {
     $credentials = $request->validate([
-        'email' => ['required', 'email'],
+        'email'    => ['required', 'email'],
         'password' => ['required'],
     ]);
 
     if (Auth::attempt($credentials)) {
         $request->session()->regenerate();
 
-        // Redirect langsung ke Halaman Status Izin Penjemputan (Commit 2 & 3)
-        return redirect()->intended(route('orangtua.penjemputan.index'))
-            ->with('success', 'Selamat datang! Anda berhasil masuk.');
+        // Cek role user dari tabel model_has_roles
+        $role = DB::table('model_has_roles')
+            ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
+            ->where('model_has_roles.model_id', Auth::id())
+            ->value('roles.name');
+
+        if ($role === 'pengasuh') {
+            return redirect()->route('pengasuh.penjemputan.index');
+        }
+
+        return redirect()->route('orangtua.penjemputan.index');
     }
 
     return back()->withErrors([
@@ -56,12 +74,27 @@ Route::middleware(['auth'])
     ->prefix('orangtua')
     ->name('orangtua.')
     ->group(function () {
-        Route::get('/penjemputan', [PenjemputanController::class, 'index'])
+        Route::get('/penjemputan', [OrangTuaPenjemputanController::class, 'index'])
             ->name('penjemputan.index');
-        Route::get('/penjemputan/create', [PenjemputanController::class, 'create'])
+        Route::get('/penjemputan/create', [OrangTuaPenjemputanController::class, 'create'])
             ->name('penjemputan.create');
-        Route::post('/penjemputan', [PenjemputanController::class, 'store'])
+        Route::post('/penjemputan', [OrangTuaPenjemputanController::class, 'store'])
             ->name('penjemputan.store');
-        Route::patch('/penjemputan/{id}/cancel', [PenjemputanController::class, 'cancel'])
+        Route::patch('/penjemputan/{id}/cancel', [OrangTuaPenjemputanController::class, 'cancel'])
             ->name('penjemputan.cancel');
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Rute Pengasuh — Validasi Penjemputan (Commit 4: PBI-17d & PBI-17e)
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth'])
+    ->prefix('pengasuh')
+    ->name('pengasuh.')
+    ->group(function () {
+        Route::get('/penjemputan', [PengasuhPenjemputanController::class, 'index'])
+            ->name('penjemputan.index');
+        Route::patch('/penjemputan/{id}/validasi', [PengasuhPenjemputanController::class, 'validasi'])
+            ->name('penjemputan.validasi');
     });
