@@ -3,24 +3,16 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
+#[Fillable(['name', 'email', 'password'])]
+#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
-
-    /**
-     * Atribut yang dapat diisi secara massal (mass assignable).
-     */
-    protected $fillable = [
-        'name',
-        'email',
-        'password',
-    ];
+    /** @use HasFactory<UserFactory> */
+    use HasFactory, HasRoles, Notifiable;
 
     /**
      * Atribut yang dikesampingkan saat serialisasi (JSON/Array).
@@ -43,30 +35,9 @@ class User extends Authenticatable
      */
     public function anak(): HasMany
     {
-        return $this->hasMany(Anak::class);
-    }
-
-    /**
-     * Riwayat/pengajuan penjemputan yang dibuat oleh orang tua/wali ini.
-     */
-    public function penjemputan(): HasMany
-    {
-        return $this->hasMany(Penjemputan::class);
-    }
-
-    /**
-     * Laporan harian anak yang dicatat oleh pengasuh ini.
-     */
-    public function laporanHarianDibuat(): HasMany
-    {
-        return $this->hasMany(LaporanHarian::class, 'pengasuh_id');
-    }
-
-    /**
-     * Laporan insiden anak yang dicatat oleh pengasuh ini.
-     */
-    public function laporanInsidenDibuat(): HasMany
-    {
-        return $this->hasMany(LaporanInsiden::class, 'pengasuh_id');
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
     }
 }

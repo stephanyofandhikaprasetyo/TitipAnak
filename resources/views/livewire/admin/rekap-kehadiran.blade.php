@@ -1,0 +1,208 @@
+@php
+    $input = 'rounded-ta border-[1.5px] border-ink bg-paper px-3.5 py-2.5 focus-visible:bg-cream focus-visible:outline-3 focus-visible:outline-yellow';
+    $fmt = fn ($t) => $t->format('d/m/Y');
+@endphp
+
+<div class="grid gap-6">
+    <div>
+        <h1 class="text-4xl font-bold leading-tight">Rekap Kehadiran</h1>
+        <p class="text-muted">Riwayat check-in dan check-out anak · {{ $fmt($awal) }} – {{ $fmt($akhir) }}</p>
+    </div>
+
+    @if (session('sukses'))
+        <div role="status" class="flex gap-3 rounded-ta border-[1.5px] border-ink bg-mint px-4 py-3 text-sm">
+            <span aria-hidden="true"><x-ikon e="✅" /></span>
+            <span><b>Berhasil.</b> {{ session('sukses') }}</span>
+        </div>
+    @endif
+
+    {{-- Filter --}}
+    <div class="flex flex-wrap items-end gap-3">
+        <div class="grid gap-1">
+            <label for="dari" class="text-xs font-semibold">Dari tanggal</label>
+            <input id="dari" type="date" wire:model.live="dari" class="{{ $input }}">
+        </div>
+        <div class="grid gap-1">
+            <label for="sampai" class="text-xs font-semibold">Sampai tanggal</label>
+            <input id="sampai" type="date" wire:model.live="sampai" class="{{ $input }}">
+        </div>
+
+        <select wire:model.live="kelompok" aria-label="Filter kelompok usia" class="{{ $input }}">
+            <option value="">Semua kelompok usia</option>
+            @foreach ($kelompokList as $k)
+                <option value="{{ $k->id }}">{{ $k->nama }}</option>
+            @endforeach
+        </select>
+
+        <label class="relative min-w-52 flex-1">
+            <span class="sr-only">Cari nama anak</span>
+            <span class="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2" aria-hidden="true"><x-ikon e="🔍" /></span>
+            <input type="search" wire:model.live.debounce.300ms="q" placeholder="Cari nama anak…" autocomplete="off"
+                class="{{ $input }} w-full pl-10">
+        </label>
+
+        @if ($adaFilter)
+            <button type="button" wire:click="resetFilter"
+                class="rounded-ta border-[1.5px] border-ink bg-paper px-4 py-2.5 text-sm font-semibold transition hover:bg-cream">Reset filter</button>
+        @endif
+    </div>
+
+    @if ($terbalik)
+        <div role="alert" class="flex gap-3 rounded-ta border-[1.5px] border-ink bg-coral px-4 py-3 text-sm">
+            <span aria-hidden="true"><x-ikon e="⚠" /></span>
+            <span>Tanggal mulai lebih akhir dari tanggal selesai, jadi tidak ada data yang cocok. Periksa rentang tanggal.</span>
+        </div>
+    @endif
+
+    {{-- Kartu ringkasan --}}
+    @if ($statistik['total'] > 0)
+        <div class="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label="Ringkasan kehadiran">
+            @foreach ([
+                ['bg-yellow', '📋', 'Total check-in', $statistik['total'], 'catatan'],
+                ['bg-blue', '🧒', 'Anak berbeda', $statistik['anak'], 'anak'],
+                ['bg-mint', '🏠', 'Sudah dijemput', $statistik['pulang'], 'catatan'],
+                ['bg-coral', '⏳', 'Masih di tempat', $statistik['masih'], 'catatan'],
+                ['bg-lavender', '🕗', 'Rata-rata datang', $statistik['rata_datang'] ?? '—', ''],
+            ] as [$warna, $ikon, $nama, $nilai, $satuan])
+                <div class="rounded-ta border-[1.5px] border-ink px-4 py-3 {{ $warna }}">
+                    <div class="text-xs font-semibold uppercase tracking-wide"><span aria-hidden="true"><x-ikon :e="$ikon" /></span> {{ $nama }}</div>
+                    <div class="mt-1 text-3xl font-bold leading-none">{{ $nilai }}</div>
+                    @if ($satuan !== '')<div class="mt-1 text-xs">{{ $satuan }}</div>@endif
+                </div>
+            @endforeach
+        </div>
+        @if ($statistik['rata_menit_di'] !== null)
+            <p class="-mt-3 text-sm text-muted">Rata-rata lama di tempat: <b class="text-ink">{{ intdiv($statistik['rata_menit_di'], 60) }} j {{ $statistik['rata_menit_di'] % 60 }} m</b> (dari hari yang sudah dijemput).</p>
+        @endif
+    @endif
+
+    {{-- Pilihan tampilan --}}
+    <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Pilih tampilan rekap">
+        @foreach (['catatan' => 'Per catatan', 'anak' => 'Ringkasan per anak'] as $kode => $label)
+            <button type="button" wire:click="setTampilan('{{ $kode }}')" aria-pressed="{{ ($perAnak ? 'anak' : 'catatan') === $kode ? 'true' : 'false' }}"
+                class="rounded-full border-[1.5px] border-ink px-4 py-2 text-sm font-semibold transition {{ ($perAnak ? 'anak' : 'catatan') === $kode ? 'bg-ink text-paper' : 'bg-paper hover:bg-cream' }}">
+                {{ $label }}
+            </button>
+        @endforeach
+    </div>
+
+    <p class="-mt-3 text-sm text-muted" aria-live="polite">
+        @if ($perAnak)
+            {{ $ringkasan->count() }} anak · {{ $total }} catatan kehadiran
+        @else
+            {{ $baris->total() }} catatan kehadiran
+        @endif
+    </p>
+
+    @if ($perAnak ? $ringkasan->isEmpty() : $baris->isEmpty())
+        <div class="rounded-ta border-[1.5px] border-ink bg-cream px-4 py-12 text-center">
+            <div class="text-xl font-bold">Tidak ada data kehadiran</div>
+            <p class="mt-1 text-sm text-muted">Belum ada catatan pada rentang ini. Coba ubah tanggal atau reset filter.</p>
+        </div>
+    @elseif ($perAnak)
+        <div class="overflow-x-auto rounded-ta border-[1.5px] border-ink bg-paper">
+            <table class="w-full border-collapse text-sm">
+                <thead>
+                    <tr class="bg-yellow text-left">
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Anak</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Kelompok usia</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Hari hadir</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Rata-rata datang</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Rata-rata di tempat</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Belum check-out</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($ringkasan as $r)
+                        <tr wire:key="ringkasan-{{ $r['anak_id'] }}" class="border-b border-ink last:border-b-0 even:bg-cream/50">
+                            <td class="px-4 py-3 font-semibold">{{ $r['nama'] }}</td>
+                            <td class="whitespace-nowrap px-4 py-3">{{ $r['kelompok'] ?? '—' }}</td>
+                            <td class="whitespace-nowrap px-4 py-3">{{ $r['hari_hadir'] }} hari</td>
+                            <td class="whitespace-nowrap px-4 py-3">{{ $r['rata_jam_datang'] ?? '—' }}</td>
+                            <td class="whitespace-nowrap px-4 py-3">
+                                @if ($r['rata_menit_di_tempat'] === null)
+                                    —
+                                @else
+                                    {{ intdiv($r['rata_menit_di_tempat'], 60) }} j {{ $r['rata_menit_di_tempat'] % 60 }} m
+                                @endif
+                            </td>
+                            <td class="whitespace-nowrap px-4 py-3">
+                                @if ($r['belum_pulang'] > 0)
+                                    <span class="rounded-full border border-ink bg-coral px-3 py-0.5 text-xs font-semibold">{{ $r['belum_pulang'] }} hari</span>
+                                @else
+                                    0
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @else
+        <div class="overflow-x-auto rounded-ta border-[1.5px] border-ink bg-paper">
+            <table class="w-full border-collapse text-sm">
+                <thead>
+                    <tr class="bg-yellow text-left">
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Tanggal</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Anak</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Kelompok usia</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Datang</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Kondisi</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Pulang</th>
+                        <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Penjemput</th>
+                        @can('hapus data kehadiran')
+                            <th class="whitespace-nowrap border-b-[1.5px] border-ink px-4 py-3 font-bold">Aksi</th>
+                        @endcan
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($baris as $k)
+                        <tr wire:key="kehadiran-{{ $k->id }}" class="border-b border-ink last:border-b-0 even:bg-cream/50">
+                            <td class="whitespace-nowrap px-4 py-3">{{ $fmt($k->tanggal) }}</td>
+                            <td class="px-4 py-3 font-semibold">{{ $k->anak?->nama_lengkap ?? '—' }}</td>
+                            <td class="whitespace-nowrap px-4 py-3">{{ $k->anak?->kelompokUsia?->nama ?? '—' }}</td>
+                            <td class="whitespace-nowrap px-4 py-3">{{ $k->check_in_pada->format('H:i') }}</td>
+                            <td class="px-4 py-3">{{ $k->kondisi_check_in ?: '—' }}</td>
+                            <td class="whitespace-nowrap px-4 py-3">
+                                @if ($k->check_out_pada)
+                                    {{ $k->check_out_pada->format('H:i') }}
+                                @else
+                                    <span class="rounded-full border border-ink bg-mint px-3 py-0.5 text-xs font-semibold">Belum pulang</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3">{{ $k->nama_penjemput ?: '—' }}</td>
+                            @can('hapus data kehadiran')
+                                <td class="whitespace-nowrap px-4 py-3">
+                                    <button type="button" wire:click="konfirmasiHapus({{ $k->id }})" class="font-semibold underline"
+                                        aria-label="Hapus kehadiran {{ $k->anak?->nama_lengkap }} tanggal {{ $fmt($k->tanggal) }}">Hapus</button>
+                                </td>
+                            @endcan
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        {{ $baris->links() }}
+    @endif
+
+    @if ($hapusKehadiran)
+        @php
+            $waktu = 'datang '.$hapusKehadiran->check_in_pada->format('H:i')
+                .($hapusKehadiran->check_out_pada ? ', pulang '.$hapusKehadiran->check_out_pada->format('H:i') : ', belum pulang');
+        @endphp
+        <x-konfirmasi-hapus judul="Hapus data kehadiran?" tombol="Ya, hapus">
+            <div class="grid gap-3">
+                <p>
+                    Kehadiran <b>{{ $hapusKehadiran->anak?->nama_lengkap ?? '—' }}</b> pada <b>{{ $fmt($hapusKehadiran->tanggal) }}</b>
+                    ({{ $waktu }}) akan dihapus. Gunakan hanya untuk data yang salah input.
+                </p>
+                <div class="grid gap-1.5">
+                    <label for="alasan" class="font-semibold">Alasan penghapusan</label>
+                    <textarea id="alasan" wire:model="alasan" rows="2" maxlength="255" placeholder="mis. Salah memilih anak saat check-in" class="{{ $input }} w-full"></textarea>
+                    @error('alasan') <span class="text-xs font-semibold text-[#B02E12]">{{ $message }}</span> @enderror
+                </div>
+            </div>
+        </x-konfirmasi-hapus>
+    @endif
+</div>
