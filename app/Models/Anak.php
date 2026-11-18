@@ -30,7 +30,6 @@ class Anak extends Model
         self::STATUS_BELUM_DATANG => 'Belum Datang',
         self::STATUS_HADIR        => 'Hadir',
         self::STATUS_DIJEMPUT     => 'Sedang Dijemput',
-
         self::STATUS_PULANG       => 'Sudah Pulang',
     ];
 
@@ -63,7 +62,6 @@ class Anak extends Model
     }
 
     public function kelas(): BelongsTo
-
     {
         return $this->belongsTo(Kelas::class);
     }
@@ -83,6 +81,16 @@ class Anak extends Model
         return $this->hasOne(Penjemputan::class)->latestOfMany();
     }
 
+    public function laporanHarian(): HasMany
+    {
+        return $this->hasMany(LaporanHarian::class);
+    }
+
+    public function laporanInsiden(): HasMany
+    {
+        return $this->hasMany(LaporanInsiden::class);
+    }
+
     /* ------------------------------------------------------------------
      | Scope
      | ------------------------------------------------------------------ */
@@ -96,7 +104,6 @@ class Anak extends Model
     {
         return $query->where($this->qualifyColumn('is_active'), true);
     }
-
 
     public function scopeBisaAjukanPenjemputan(Builder $query): Builder
     {
@@ -129,7 +136,6 @@ class Anak extends Model
         return Attribute::make(
             get: fn () => Str::upper(Str::substr((string) $this->nama_tampil, 0, 1)),
         );
-
     }
 
     protected function umur(): Attribute
@@ -162,7 +168,6 @@ class Anak extends Model
         return Attribute::make(
             get: fn () => self::STATUS_LABEL[$this->status_kehadiran] ?? 'Tidak Diketahui',
         );
-
     }
 
     protected function statusKehadiranTone(): Attribute

@@ -2,12 +2,11 @@
 
 namespace App\Models;
 
-// 1. Import class yang dibutuhkan
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany; // Tambahan untuk relasi
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles; // Trait Spatie Permission
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
@@ -53,5 +52,21 @@ class User extends Authenticatable
     public function penjemputan(): HasMany
     {
         return $this->hasMany(Penjemputan::class);
+    }
+
+    /**
+     * Laporan harian anak yang dicatat oleh pengasuh ini.
+     */
+    public function laporanHarianDibuat(): HasMany
+    {
+        return $this->hasMany(LaporanHarian::class, 'pengasuh_id');
+    }
+
+    /**
+     * Laporan insiden anak yang dicatat oleh pengasuh ini.
+     */
+    public function laporanInsidenDibuat(): HasMany
+    {
+        return $this->hasMany(LaporanInsiden::class, 'pengasuh_id');
     }
 }

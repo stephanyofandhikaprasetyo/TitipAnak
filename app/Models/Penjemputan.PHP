@@ -15,33 +15,47 @@ class Penjemputan extends Model
     protected $table = 'penjemputan';
     protected $guarded = ['id'];
 
-    public const STATUS_PENDING   = 'pending';
-    public const STATUS_DISETUJUI = 'disetujui';
-    public const STATUS_DITOLAK   = 'ditolak';
-    public const STATUS_SELESAI   = 'selesai';
+    public const DISK_FOTO      = 'local';
+    public const DIREKTORI_FOTO = 'penjemputan/identitas';
 
+    public const STATUS_PENDING    = 'pending';
+    public const STATUS_DISETUJUI  = 'disetujui';
+    public const STATUS_DITOLAK    = 'ditolak';
+    public const STATUS_SELESAI    = 'selesai';
+    public const STATUS_DIBATALKAN = 'dibatalkan';
+
+    public const METODE_KTP     = 'ktp';
+    public const METODE_PIN     = 'pin';
     public const METODE_DARURAT = 'darurat';
 
     public const STATUS_LABEL = [
-        self::STATUS_PENDING   => 'Menunggu',
-        self::STATUS_DISETUJUI => 'Disetujui',
-        self::STATUS_DITOLAK   => 'Ditolak',
-        self::STATUS_SELESAI   => 'Selesai',
+        self::STATUS_PENDING    => 'Menunggu Verifikasi',
+        self::STATUS_DISETUJUI  => 'Disetujui',
+        self::STATUS_DITOLAK    => 'Ditolak',
+        self::STATUS_SELESAI    => 'Selesai',
+        self::STATUS_DIBATALKAN => 'Dibatalkan',
     ];
 
     public const STATUS_TONE = [
-
-        self::STATUS_PENDING   => 'yellow',
-        self::STATUS_DISETUJUI => 'mint',
-        self::STATUS_DITOLAK   => 'coral',
-        self::STATUS_SELESAI   => 'blue',
+        self::STATUS_PENDING    => 'yellow',
+        self::STATUS_DISETUJUI  => 'mint',
+        self::STATUS_DITOLAK    => 'coral',
+        self::STATUS_SELESAI    => 'blue',
+        self::STATUS_DIBATALKAN => 'ink',
     ];
 
     public const STATUS_KETERANGAN = [
-        self::STATUS_PENDING   => 'Pengajuan sedang diperiksa oleh admin atau pengasuh.',
-        self::STATUS_DISETUJUI => 'Penjemput boleh menjemput anak Anda dengan membawa KTP.',
-        self::STATUS_DITOLAK   => 'Pengajuan tidak disetujui. Silakan hubungi pihak daycare.',
-        self::STATUS_SELESAI   => 'Anak sudah dijemput oleh penjemput ini.',
+        self::STATUS_PENDING    => 'Pengajuan sedang diperiksa oleh admin atau pengasuh.',
+        self::STATUS_DISETUJUI  => 'Penjemput diizinkan menjemput anak Anda dengan membawa KTP.',
+        self::STATUS_DITOLAK    => 'Pengajuan tidak disetujui. Silakan hubungi pihak daycare.',
+        self::STATUS_SELESAI    => 'Anak sudah selesai dijemput oleh penjemput ini.',
+        self::STATUS_DIBATALKAN => 'Pengajuan penjemputan telah dibatalkan oleh orang tua.',
+    ];
+
+    public const METODE_LABEL = [
+        self::METODE_KTP     => 'Verifikasi KTP Fisik',
+        self::METODE_PIN     => 'Kode PIN / Konfirmasi Wali',
+        self::METODE_DARURAT => 'Penjemputan Darurat',
     ];
 
     protected $casts = [
@@ -63,7 +77,6 @@ class Penjemputan extends Model
     }
 
     public function user(): BelongsTo
-
     {
         return $this->belongsTo(User::class);
     }
@@ -96,7 +109,6 @@ class Penjemputan extends Model
         return $query->where($this->qualifyColumn('status'), self::STATUS_PENDING);
     }
 
-
     /* ------------------------------------------------------------------
      | Accessor
      | ------------------------------------------------------------------ */
@@ -122,6 +134,13 @@ class Penjemputan extends Model
         );
     }
 
+    protected function metodeVerifikasiLabel(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => self::METODE_LABEL[$this->metode_verifikasi] ?? strtoupper((string) $this->metode_verifikasi),
+        );
+    }
+
     /* ------------------------------------------------------------------
      | Helper
      | ------------------------------------------------------------------ */
@@ -129,7 +148,6 @@ class Penjemputan extends Model
     public function isDarurat(): bool
     {
         return $this->metode_verifikasi === self::METODE_DARURAT;
-
     }
 
     public function isMenunggu(): bool
@@ -142,8 +160,23 @@ class Penjemputan extends Model
         return $this->status === self::STATUS_DISETUJUI;
     }
 
+    public function isDibatalkan(): bool
+    {
+        return $this->status === self::STATUS_DIBATALKAN;
+    }
+
+    public function bisaDibatalkan(): bool
+    {
+        return $this->status === self::STATUS_PENDING;
+    }
+
     public static function daftarStatus(): array
     {
         return self::STATUS_LABEL;
+    }
+
+    public static function daftarMetode(): array
+    {
+        return self::METODE_LABEL;
     }
 }
