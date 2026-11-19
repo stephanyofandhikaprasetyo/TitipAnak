@@ -11,6 +11,7 @@ class RolePermissionSeeder extends Seeder
 {
     public function run(): void
     {
+        // 1. Bersihkan cache permission sebelum memulai
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $matrix = [
@@ -46,17 +47,34 @@ class RolePermissionSeeder extends Seeder
             ],
         ];
 
-        foreach ($matrix as $roleName => $permissions) {
-            $role = Role::findOrCreate($roleName, 'web');
+        // 2. Kumpulkan dan buat SEMUA permission terlebih dahulu
+        $allPermissions = collect($matrix)
+            ->flatten()
+            ->push('ekspor data')
+            ->unique();
 
-            foreach ($permissions as $permission) {
-                Permission::findOrCreate($permission, 'web');
-            }
+        foreach ($allPermissions as $permissionName) {
+            Permission::firstOrCreate([
+                'name' => $permissionName,
+                'guard_name' => 'web',
+            ]);
+        }
+
+        // 3. Reset cache Spatie agar permission yang baru dibuat langsung terbaca
+        // (wajib dilakukan karena DatabaseSeeder memakai trait WithoutModelEvents)
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        // 4. Buat role dan pasangkan permission-nya
+        foreach ($matrix as $roleName => $permissions) {
+            $role = Role::firstOrCreate([
+                'name' => $roleName,
+                'guard_name' => 'web',
+            ]);
 
             $role->syncPermissions($permissions);
         }
 
-        // Permission yang tidak melekat pada role manapun, diberikan langsung ke pengguna tertentu.
-        Permission::findOrCreate('ekspor data', 'web');
+        // 5. Reset cache terakhir kali
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

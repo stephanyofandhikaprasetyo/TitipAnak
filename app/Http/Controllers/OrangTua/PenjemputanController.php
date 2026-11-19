@@ -3,145 +3,207 @@
 namespace App\Http\Controllers\OrangTua;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StorePenjemputanRequest;
 use App\Models\Anak;
-use App\Models\Penjemput;
-use App\Models\Penjemputan;
-use Illuminate\Http\RedirectResponse;
+use App\Models\IzinPenjemputan;
+use App\Models\Kehadiran;
+use App\Models\PenjemputTerdaftar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\View\View;
-use Throwable;
 
 class PenjemputanController extends Controller
 {
-    /**
-     * Pastikan User 1 otomatis terautentikasi untuk pengujian lokal
-     */
-    private function ensureAuthenticated(): void
+    public function index(Request $request)
     {
-        if (!Auth::check()) {
-            Auth::loginUsingId(1);
-        }
+        $userId = Auth::id();
+        $searchAktif = trim((string) $request->query('q', ''));
+        $anakIdAktif = $request->query('anak_id');
+        $statusAktif = $request->query('status');
+
+        // Ambil semua anak milik orang tua beserta relasi kelompokUsia, catatanKesehatan, dan penjemputTerdaftar
+        $daftarAnak = Anak::with([
+                'kelompokUsia',
+                'catatanKesehatan',
+                'penjemputTerdaftar' => fn ($q) => $q->where('aktif', 1),
+            ])
+            ->where('orang_tua_id', $userId)
+            ->get();
+
+        // Cek kehadiran hari ini untuk menentukan status kehadiran tiap anak
+        $kehadiranHariIni = Kehadiran::whereIn('anak_id', $daftarAnak->pluck('id'))
+            ->whereDate('tanggal', today())
+            ->get()
+            ->keyBy('anak_id');
+
+        $daftarAnak->each(function ($anak) use ($kehadiranHariIni) {
+            $hadir = $kehadiranHariIni->get($anak->id);
+            if ($anak->status !== 'aktif') {
+                $anak->status_kehadiran_label = 'Belum Aktif';
+                $anak->status_kehadiran_tone  = 'default';
+                $anak->bisa_diajukan          = false;
+            } elseif ($hadir && $hadir->check_out_pada) {
+                $anak->status_kehadiran_label = 'Sudah Dijemput';
+                $anak->status_kehadiran_tone  = 'blue';
+                $anak->bisa_diajukan          = false;
+            } elseif ($hadir) {
+                $anak->status_kehadiran_label = 'Hadir di Daycare';
+                $anak->status_kehadiran_tone  = 'mint';
+                $anak->bisa_diajukan          = true;
+            } else {
+                $anak->status_kehadiran_label = 'Belum Check-In';
+                $anak->status_kehadiran_tone  = 'yellow';
+                $anak->bisa_diajukan          = true;
+            }
+        });
+
+        $anakAktifBisaJemput = $daftarAnak->where('bisa_diajukan', true)->values();
+
+        // ID anak yang masih punya izin berstatus 'menunggu'
+        $anakSedangDiajukanIds = IzinPenjemputan::where('diajukan_oleh_id', $userId)
+            ->where('status', 'menunggu')
+            ->pluck('anak_id')
+            ->all();
+
+        // Statistik dari tabel izin_penjemputan
+        $baseQuery = IzinPenjemputan::where('diajukan_oleh_id', $userId);
+        $statistik = [
+            'total'      => (clone $baseQuery)->count(),
+            'menunggu'   => (clone $baseQuery)->where('status', 'menunggu')->count(),
+            'disetujui'  => (clone $baseQuery)->where('status', 'disetujui')->count(),
+            'ditolak'    => (clone $baseQuery)->where('status', 'ditolak')->count(),
+            'dibatalkan' => (clone $baseQuery)->where('status', 'dibatalkan')->count(),
+        ];
+
+        // Query Riwayat + Filter
+        $riwayatPenjemputan = IzinPenjemputan::with(['anak.kelompokUsia', 'validator'])
+            ->where('diajukan_oleh_id', $userId)
+            ->when($searchAktif !== '', function ($q) use ($searchAktif) {
+                $q->where(function ($sub) use ($searchAktif) {
+                    $sub->where('nama_penjemput', 'like', "%{$searchAktif}%")
+                        ->orWhereHas('anak', fn ($a) => $a->where('nama_lengkap', 'like', "%{$searchAktif}%"));
+                });
+            })
+            ->when($anakIdAktif, fn ($q) => $q->where('anak_id', $anakIdAktif))
+            ->when($statusAktif, fn ($q) => $q->where('status', $statusAktif))
+            ->orderByDesc('tanggal_jemput')
+            ->orderByDesc('id')
+            ->paginate(10)
+            ->withQueryString();
+
+        // Daftar Wali Penjemput Terdaftar untuk semua anak milik orang tua ini
+        $daftarPenjemput = PenjemputTerdaftar::with('anak')
+            ->whereIn('anak_id', $daftarAnak->pluck('id'))
+            ->where('aktif', 1)
+            ->get();
+
+        $daftarStatus = [
+            'menunggu'   => 'Menunggu',
+            'disetujui'  => 'Disetujui',
+            'ditolak'    => 'Ditolak',
+            'dibatalkan' => 'Dibatalkan',
+        ];
+
+        return view('orangtua.penjemputan.index', compact(
+            'daftarAnak',
+            'anakAktifBisaJemput',
+            'anakSedangDiajukanIds',
+            'statistik',
+            'riwayatPenjemputan',
+            'daftarPenjemput',
+            'daftarStatus',
+            'searchAktif',
+            'anakIdAktif',
+            'statusAktif'
+        ));
     }
 
-    /**
-     * Menampilkan daftar status dan riwayat pengajuan izin penjemputan milik Orang Tua.
-     */
-    public function index()
+    public function store(Request $request)
     {
-        $this->ensureAuthenticated();
-
         $userId = Auth::id();
 
-        $penjemputanList = Penjemputan::with(['anak.kelas', 'penjemput'])
-            ->where('user_id', $userId)
-            ->latest()
-            ->paginate(10);
+        $validated = $request->validate([
+            'anak_id'        => ['required', 'exists:anak,id'],
+            'mode_penjemput' => ['required', 'in:baru,terdaftar'],
+            'penjemput_id'   => ['required_if:mode_penjemput,terdaftar', 'nullable', 'exists:penjemput_terdaftar,id'],
+            'nama'           => ['required_if:mode_penjemput,baru', 'nullable', 'string', 'max:100'],
+            'hubungan'       => ['required_if:mode_penjemput,baru', 'nullable', 'string', 'max:50'],
+            'no_hp'          => ['required_if:mode_penjemput,baru', 'nullable', 'string', 'max:20'],
+            'simpan_wali'    => ['nullable', 'boolean'],
+            'tanggal_jemput' => ['required', 'date', 'after_or_equal:today'],
+            'alasan'         => ['required', 'string', 'max:1000'],
+            'foto_bukti'     => ['required_if:mode_penjemput,baru', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
 
-        return view('orangtua.penjemputan.index', compact('penjemputanList'));
-    }
-
-    /**
-     * Tampilkan form pengajuan izin penjemputan.
-     */
-    public function create(): View
-    {
-        $this->ensureAuthenticated();
-
-        $anakList = Anak::query()
-            ->where('user_id', Auth::id())
-            ->where('is_active', true)
-            ->with('kelas:id,nama_kelas')
-            ->orderBy('nama_lengkap')
-            ->get(['id', 'kode_anak', 'nama_lengkap', 'kelas_id']);
-
-        return view('orangtua.penjemputan.create', compact('anakList'));
-    }
-
-    /**
-     * Simpan pengajuan izin penjemputan.
-     */
-    public function store(StorePenjemputanRequest $request): RedirectResponse
-    {
-        $this->ensureAuthenticated();
-
-        $validated = $request->validated();
-
-        $anak = Anak::query()
-            ->where('id', $validated['anak_id'])
-            ->where('user_id', Auth::id())
+        // Pastikan anak memang milik orang tua yang login
+        $anak = Anak::where('id', $validated['anak_id'])
+            ->where('orang_tua_id', $userId)
             ->firstOrFail();
 
-        $fotoPath = null;
-
-        try {
-            DB::transaction(function () use ($request, $validated, $anak, &$fotoPath) {
-                $fotoPath = $request->file('foto_identitas')
-                    ->store('penjemputan/identitas', 'local');
-
-                $penjemput = Penjemput::create([
-                    'anak_id'   => $anak->id,
-                    'nama'      => $validated['nama_penjemput'],
-                    'hubungan'  => $validated['hubungan'],
-                    'nik'       => $validated['nik'],
-                    'no_hp'     => $validated['no_hp'],
-                    'foto'      => $fotoPath,
-                    'is_active' => true,
-                ]);
-
-                Penjemputan::create([
-                    'anak_id'           => $anak->id,
-                    'penjemput_id'      => $penjemput->id,
-                    'user_id'           => Auth::id(),
-                    'waktu_jemput'      => $validated['waktu_jemput'],
-                    'metode_verifikasi' => 'ktp',
-                    'foto_bukti'        => $fotoPath,
-                    'catatan'           => $validated['alasan'],
-                    'status'            => 'pending',
-                ]);
-            });
-        } catch (Throwable $e) {
-            if ($fotoPath && Storage::disk('local')->exists($fotoPath)) {
-                Storage::disk('local')->delete($fotoPath);
+        DB::transaction(function () use ($request, $validated, $anak, $userId) {
+            $pathFoto = null;
+            if ($request->hasFile('foto_bukti')) {
+                $pathFoto = $request->file('foto_bukti')->store('penjemput-identitas', 'public');
             }
 
-            report($e);
+            if ($validated['mode_penjemput'] === 'terdaftar') {
+                $wali = PenjemputTerdaftar::where('id', $validated['penjemput_id'])
+                    ->where('anak_id', $anak->id)
+                    ->firstOrFail();
 
-            return back()
-                ->withInput()
-                ->withErrors(['general' => 'Terjadi kesalahan saat menyimpan pengajuan: ' . $e->getMessage()]);
-        }
+                $namaPenjemput = $wali->nama_lengkap;
+                $hubungan      = $wali->hubungan;
+                $noHp          = $wali->no_hp;
+                $fotoFinal     = $pathFoto ?? $wali->path_foto_identitas ?? '';
+                $waliId        = $wali->id;
+            } else {
+                $namaPenjemput = $validated['nama'];
+                $hubungan      = $validated['hubungan'];
+                $noHp          = $validated['no_hp'];
+                $fotoFinal     = $pathFoto ?? '';
+                $waliId        = null;
+
+                if ($request->boolean('simpan_wali', true)) {
+                    $waliBaru = PenjemputTerdaftar::create([
+                        'anak_id'             => $anak->id,
+                        'nama_lengkap'        => $namaPenjemput,
+                        'hubungan'            => $hubungan,
+                        'no_hp'               => $noHp,
+                        'path_foto_identitas' => $fotoFinal,
+                        'aktif'               => 1,
+                    ]);
+                    $waliId = $waliBaru->id;
+                }
+            }
+
+            IzinPenjemputan::create([
+                'anak_id'                => $anak->id,
+                'diajukan_oleh_id'       => $userId,
+                'penjemput_terdaftar_id' => $waliId,
+                'nama_penjemput'         => $namaPenjemput,
+                'hubungan_penjemput'     => $hubungan,
+                'no_hp_penjemput'        => $noHp,
+                'path_foto_identitas'    => $fotoFinal,
+                'alasan'                 => $validated['alasan'],
+                'tanggal_jemput'         => $validated['tanggal_jemput'],
+                'status'                 => 'menunggu',
+            ]);
+        });
 
         return redirect()
             ->route('orangtua.penjemputan.index')
-            ->with('success', 'Pengajuan izin penjemputan berhasil dikirim dan menunggu verifikasi.');
+            ->with('success', 'Pengajuan izin penjemputan berhasil dikirim dan menunggu verifikasi pengasuh.');
     }
 
-    /**
-     * Membatalkan pengajuan izin penjemputan (Status 'pending' atau 'disetujui').
-     */
-    public function cancel($id): RedirectResponse
+    public function cancel(IzinPenjemputan $penjemputan)
     {
-        $this->ensureAuthenticated();
+        abort_if($penjemputan->diajukan_oleh_id !== Auth::id(), 403);
 
-        $penjemputan = Penjemputan::where('id', $id)
-            ->where('user_id', Auth::id())
-            ->firstOrFail();
-
-        // Validasi: Pembatalan diperbolehkan jika status masih 'pending' atau 'disetujui'
-        if (in_array($penjemputan->status, ['selesai', 'ditolak', 'dibatalkan'])) {
-            return redirect()->back()->with('error', 'Pengajuan ini tidak dapat dibatalkan karena sudah selesai atau ditolak.');
+        if ($penjemputan->status !== 'menunggu') {
+            return back()->with('error', 'Hanya pengajuan berstatus menunggu yang dapat dibatalkan.');
         }
 
-        // Update status di database
-        $penjemputan->update([
-            'status' => 'dibatalkan',
-        ]);
+        $penjemputan->update(['status' => 'dibatalkan']);
 
-        return redirect()->route('orangtua.penjemputan.index')
-            ->with('success', 'Pengajuan izin penjemputan berhasil dibatalkan.');
+        return back()->with('success', 'Pengajuan penjemputan berhasil dibatalkan.');
     }
 }

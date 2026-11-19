@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['pendaftaran_id', 'orang_tua_id', 'kelompok_usia_id', 'nama_lengkap', 'tanggal_lahir', 'jenis_kelamin', 'status'])]
@@ -56,5 +57,10 @@ class Anak extends Model
     public function kelompokUsia(): BelongsTo
     {
         return $this->belongsTo(KelompokUsia::class);
+    }
+
+    public function catatanKesehatan(): HasOne
+    {
+        return $this->hasOne(CatatanKesehatan::class);
     }
 }

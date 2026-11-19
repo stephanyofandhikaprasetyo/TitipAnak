@@ -9,8 +9,18 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'anak_id', 'diajukan_oleh_id', 'nama_penjemput', 'path_foto_identitas', 'alasan', 'tanggal_jemput',
-    'status', 'divalidasi_oleh_id', 'divalidasi_pada',
+    'anak_id',
+    'diajukan_oleh_id',
+    'penjemput_terdaftar_id',
+    'nama_penjemput',
+    'hubungan_penjemput',
+    'no_hp_penjemput',
+    'path_foto_identitas',
+    'alasan',
+    'tanggal_jemput',
+    'status',
+    'divalidasi_oleh_id',
+    'divalidasi_pada',
 ])]
 class IzinPenjemputan extends Model
 {
@@ -27,7 +37,7 @@ class IzinPenjemputan extends Model
     protected function casts(): array
     {
         return [
-            'tanggal_jemput' => 'date',
+            'tanggal_jemput'  => 'date',
             'divalidasi_pada' => 'datetime',
         ];
     }
@@ -40,6 +50,16 @@ class IzinPenjemputan extends Model
     public function diajukanOleh(): BelongsTo
     {
         return $this->belongsTo(User::class, 'diajukan_oleh_id');
+    }
+
+    public function validator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'divalidasi_oleh_id');
+    }
+
+    public function penjemputTerdaftar(): BelongsTo
+    {
+        return $this->belongsTo(PenjemputTerdaftar::class, 'penjemput_terdaftar_id');
     }
 
     public function scopeDisetujui(Builder $query): void
